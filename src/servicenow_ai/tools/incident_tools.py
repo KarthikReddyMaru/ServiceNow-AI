@@ -3,6 +3,7 @@ import logging
 from typing import List
 from langchain_core.tools import tool
 
+from servicenow_ai.embeddings.retrieval import IncidentRetrievalService
 from src.servicenow_ai.embeddings.vector_store import IncidentVectorStore
 from src.servicenow_ai.client.servicenow import ServiceNowClient
 
@@ -12,37 +13,45 @@ logger = logging.getLogger(__name__)
 vector_store = IncidentVectorStore()
 sn_client = ServiceNowClient()
 
+# Wrap the vector store in our retrieval service which handles query optimization
+retrieval_service = IncidentRetrievalService(vector_store)
+
 @tool
-def search_historical_incident_ids(symptoms_query: str, limit: int = 5) -> str:
+def search_historical_incident_ids(user_query: str, limit: int = 5) -> str:
     """
-    Search historical incidents based on technical symptoms, errors, or descriptions.
+    Search historical incidents based on a natural language description of the current issue.
     
     Args:
-        symptoms_query: A highly detailed search query containing the error messages, application names, or technical symptoms.
+        user_query: A description of the problem, symptoms, or error messages. 
+                    (The tool will automatically optimize this query for vector search).
         limit: Maximum number of incident IDs to return (default is 5).
         
     Returns:
         A JSON string containing the relevant incident numbers and high-level metadata (Service, CI). 
         You MUST use the fetch_incident_investigation_details tool to read the actual resolution and work notes of these incidents.
     """
-
-    logger.info(f"Tool executed: search_historical_incident_ids for query: '{symptoms_query}'")
+    logger.info(f"Tool executed: search_historical_incident_ids for raw query: '{user_query}'")
     
-    retriever = vector_store.get_retriever(top_k=limit)
-    docs = retriever.invoke(symptoms_query)
+    # We pass an empty chat_history here because the main Agent maintains the conversational context.
+    # The internal retrieval service just needs to optimize the specific search intent.
+    docs, optimized_query = retrieval_service.retrieve(
+        query=user_query, 
+        chat_history=[], 
+        fetch_k=10, 
+        return_k=limit
+    )
+    
+    logger.info(f"Internal Vector Search executed using optimized query: '{optimized_query}'")
     
     results = []
     for doc in docs:
-        # We explicitly extract ONLY the ID and basic metadata, forcing the LLM to 
-        # realize it doesn't have the deep context yet.
         inc_number = doc.metadata.get("incident_number")
         if inc_number:
             results.append({
                 "incident_number": inc_number,
-                "business_service": doc.metadata.get("business_service", "Unknown"),
+                "category": doc.metadata.get("category", "Unknown"),
+                "subcategory": doc.metadata.get("subcategory", "Unknown"),
                 "configuration_item": doc.metadata.get("cmdb_ci", "Unknown"),
-                # We provide the first 150 chars of content just to give the LLM 
-                # enough context to decide if this ID is worth fetching.
                 "brief_preview": doc.page_content[:150].replace("\n", " ") + "..."
             })
             
@@ -58,7 +67,7 @@ def fetch_incident_investigation_details(incident_numbers: List[str]) -> str:
     
     Args:
         incident_numbers: A list of specific incident strings (e.g., ["INC0010001", "INC0010002"]).
-        
+
     Returns:
         A formatted text payload containing the real engineer work notes, comments, and resolution codes from ServiceNow.
     """
@@ -84,7 +93,6 @@ def fetch_incident_investigation_details(incident_numbers: List[str]) -> str:
         
         category = inc.get("category", "Unknown")
         subcategory = inc.get("subcategory", "Unknown")
-        service = inc.get("business_service", "Unknown")
         ci = inc.get("cmdb_ci", "Unknown")
         caller = inc.get("caller_id", "Unknown")
         
@@ -110,7 +118,6 @@ def fetch_incident_investigation_details(incident_numbers: List[str]) -> str:
             State: {state}
             Priority: {priority} (Impact: {impact}, Urgency: {urgency})
             Category: {category} / Subcategory: {subcategory}
-            Service: {service}
             Configuration Item: {ci}
             Caller: {caller}
 

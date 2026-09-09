@@ -12,7 +12,8 @@ class IncidentFormatter:
         """Formats raw ServiceNow JSON into a dense, Markdown-formatted semantic string."""
         number = incident.get("number", "Unknown")
         sys_id = incident.get("sys_id", "Unknown")
-        service = incident.get("business_service", "None specified")
+        category = incident.get("category", "None specified")
+        subcategory = incident.get("subcategory", "None specified")
         ci = incident.get("cmdb_ci", "None specified")
         short_desc = incident.get("short_description", "").strip()
         desc = incident.get("description", "").strip()
@@ -23,9 +24,9 @@ class IncidentFormatter:
 
         chunk = f"# Incident: {number}\n\n"
         chunk += f"__SysID:__ {sys_id}\n\n"
-        chunk += f"__Service:__ {service}\n\n"
+        chunk += f"__Category:__ {category}\n\n"
+        chunk += f"__Subcategory:__ {subcategory}\n\n"
         chunk += f"__Configuration Item:__ {ci}\n\n"
-
         chunk += f"__Summary:__ {short_desc}\n\n"
         chunk += "__Description:__\n\n"
         chunk += f"{desc}"
@@ -39,10 +40,11 @@ class IncidentFormatter:
         
         return Document(
             page_content=markdown_content,
-            metadata = {
+            metadata={
                 "incident_number": incident.get("number", "Unknown"),
                 "sys_id": str(incident.get("sys_id", "")),
-                "business_service": str(incident.get("business_service", "")),
+                "category": str(incident.get("category", "")),
+                "subcategory": str(incident.get("subcategory", "")),
                 "cmdb_ci": str(incident.get("cmdb_ci", ""))
             }
         )

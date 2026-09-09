@@ -62,8 +62,9 @@ class ServiceNowClient:
         1. Snapshot Retrieval: Fetches lightweight incident data created/updated after a certain date.
         Used to generate the semantic embeddings for the vector store.
         """
-        fields = ["sys_id", "number", "short_description", "description", "cmdb_ci", "business_service"]
-        
+
+        fields = ["sys_id", "number", "short_description", "description", "cmdb_ci", "category", "subcategory"]        
+
         if custom_fields:
             fields = list(set(fields + custom_fields))
             
@@ -98,7 +99,6 @@ class ServiceNowClient:
             "priority",
             "category",
             "subcategory",
-            "business_service",     
             "caller_id",            
             "resolved_by"
         ]
