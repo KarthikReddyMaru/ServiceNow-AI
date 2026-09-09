@@ -72,23 +72,35 @@ class ServiceNowClient:
         return self._fetch_incidents(query=query, fields=fields, display_value=True, limit=limit)
 
     def get_incidents_for_investigation(self, incident_numbers: List[str], custom_fields: Optional[List[str]] = None) -> List[Dict[str, Any]]:
+
         """
         2. Agent Investigation Tool: Fetches deep, rich context for specific incidents.
         Used by the LLM to read the historical investigation evidence.
         Fetches each incident individually to ensure complete extraction of journal fields.
         """
-        # Detailed fields containing vital investigation history and citations
+
+        # Detailed fields containing vital investigation history, metadata, and citations
         fields = [
             "number", 
             "short_description", 
             "description", 
-            "work_notes",           # Internal engineer investigation steps
-            "comments",             # Additional comments / customer communication
-            "close_notes",          # Final resolution summary
-            "resolution_code",      # How it was resolved
+            "work_notes",           
+            "comments",             
+            "close_notes",          
+            "resolution_code",      
             "assignment_group", 
             "assigned_to",
-            "resolved_at"
+            "resolved_at",
+            "cmdb_ci",              
+            "state",
+            "impact",
+            "urgency",
+            "priority",
+            "category",
+            "subcategory",
+            "business_service",     
+            "caller_id",            
+            "resolved_by"
         ]
         
         if custom_fields:
@@ -100,7 +112,6 @@ class ServiceNowClient:
             logger.info(f"Fetching deep investigation context for incident: {number}")
             query = f"number={number}"
             
-            # limit=1 because incident numbers are uniquely constrained
             result = self._fetch_incidents(query=query, fields=fields, display_value=True, limit=1)
             
             if result:
