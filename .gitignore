@@ -10,3 +10,4 @@ wheels/
 .venv
 knowledge_base
 .env
+/chroma_data/**
